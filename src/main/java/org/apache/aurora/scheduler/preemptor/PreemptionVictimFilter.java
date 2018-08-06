@@ -243,6 +243,8 @@ public interface PreemptionVictimFilter {
 
         if (!pendingIsPreemptible && victimIsPreemptible) {
           return true;
+        } else if (!pendingIsPreemptible && !victimIsPreemptible) {
+          return false;
         } else if (pendingIsPreemptible == victimIsPreemptible) {
           // If preemptible flags are equal, preemption is based on priority within the same role.
           if (pendingTask.getJob().getRole().equals(possibleVictim.getRole())) {

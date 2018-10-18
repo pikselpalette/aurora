@@ -35,6 +35,8 @@ public class StateModule extends AbstractModule {
   protected void configure() {
     bind(TaskAssigner.class).to(TaskAssignerImpl.class);
     bind(TaskAssignerImpl.class).in(Singleton.class);
+
+    PubsubEventModule.bindSubscriber(binder(), TaskAssignerImpl.class);
     bind(MesosTaskFactory.class).to(MesosTaskFactoryImpl.class);
 
     bind(StateManager.class).to(StateManagerImpl.class);

@@ -13,24 +13,22 @@
  */
 package org.apache.aurora.scheduler.state;
 
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
-
-import javax.inject.Inject;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Optional;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
-
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+import com.google.common.eventbus.Subscribe;
 import org.apache.aurora.common.inject.TimedInterceptor.Timed;
 import org.apache.aurora.common.stats.StatsProvider;
 import org.apache.aurora.scheduler.HostOffer;
 import org.apache.aurora.scheduler.TierInfo;
 import org.apache.aurora.scheduler.TierManager;
 import org.apache.aurora.scheduler.base.TaskGroupKey;
+import org.apache.aurora.scheduler.base.Tasks;
+import org.apache.aurora.scheduler.events.PubsubEvent;
+import org.apache.aurora.scheduler.events.PubsubEvent.TaskStateChange;
 import org.apache.aurora.scheduler.filter.SchedulingFilter;
 import org.apache.aurora.scheduler.filter.SchedulingFilter.ResourceRequest;
 import org.apache.aurora.scheduler.filter.SchedulingFilter.UnusedResource;
@@ -45,10 +43,20 @@ import org.apache.mesos.Protos.TaskInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static java.util.Objects.requireNonNull;
+import javax.inject.Inject;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
+import static java.util.Objects.requireNonNull;
 import static org.apache.aurora.gen.ScheduleStatus.LOST;
 import static org.apache.aurora.gen.ScheduleStatus.PENDING;
+import static org.apache.aurora.scheduler.state.TaskAssigner.Status.SUCCESS;
+import static org.apache.aurora.scheduler.state.TaskAssigner.Status.VETOED;
 import static org.apache.aurora.scheduler.storage.Storage.MutableStoreProvider;
 import static org.apache.mesos.Protos.Offer;
 
@@ -74,7 +82,7 @@ public interface TaskAssigner {
       Iterable<String> taskIds,
       Map<String, TaskGroupKey> slaveReservations);
 
-  class TaskAssignerImpl implements TaskAssigner {
+  class TaskAssignerImpl implements TaskAssigner, PubsubEvent.EventSubscriber {
     private static final Logger LOG = LoggerFactory.getLogger(TaskAssignerImpl.class);
 
     @VisibleForTesting
@@ -93,6 +101,9 @@ public interface TaskAssigner {
     private final MesosTaskFactory taskFactory;
     private final OfferManager offerManager;
     private final TierManager tierManager;
+
+    // Map with all tasks pending to be executed, and grouped by group key
+    private final Map<TaskGroupKey, Iterable<String>> pendingTaskIds = new ConcurrentHashMap<>();
 
     @Inject
     public TaskAssignerImpl(
@@ -154,10 +165,41 @@ public interface TaskAssigner {
         return ImmutableSet.of();
       }
 
+      if(!pendingTaskIds.containsKey(groupKey) || !Sets.newHashSet(pendingTaskIds.get(groupKey)).containsAll(Sets.newHashSet(taskIds))) {
+        pendingTaskIds.put(groupKey, taskIds);
+      }
+
+      return pendingTaskIds.keySet().stream()
+              .max(Comparator.comparing(tg -> tg.getTask().getPriority()))
+              .map(candidateGroupKey -> {
+                LOG.info("GOING TO EXECUTE THIS GROUP: {} - taskIds --> {}", candidateGroupKey.toString(), Lists.newArrayList(pendingTaskIds.get(candidateGroupKey)));
+                Set<String> assignedTaskIds = maybeAssignCandidate(storeProvider, resourceRequest, candidateGroupKey, pendingTaskIds.get(candidateGroupKey), slaveReservations);
+                LOG.info("Assigned task ids --> {}", assignedTaskIds);
+                return assignedTaskIds;
+              }).orElse(Collections.emptySet());
+
+//      List<TaskGroupKey> sortedGroupKeys = pendingTaskIds.keySet().stream()
+//              .sorted(Comparator.comparing(tg -> tg.getTask().getPriority()))
+//              .collect(Collectors.toList());
+//
+//      for(TaskGroupKey candidateGroupKey : sortedGroupKeys) {
+//        TaskAssignerResponse assignedResponse = maybeAssignCandidate(storeProvider, resourceRequest, candidateGroupKey, pendingTaskIds.get(candidateGroupKey), slaveReservations);
+//        if(assignedResponse.getTaskIds().containsAll(Sets.newHashSet(pendingTaskIds.get(candidateGroupKey)))) {
+//          return assignedResponse.getTaskIds();
+//        }
+//      }
+//
+//      return Collections.emptySet();
+
+
+    }
+
+    private Set<String> maybeAssignCandidate(MutableStoreProvider storeProvider, ResourceRequest resourceRequest, TaskGroupKey groupKey, Iterable<String> taskIds, Map<String, TaskGroupKey> slaveReservations) {
       TierInfo tierInfo = tierManager.getTier(groupKey.getTask());
       ImmutableSet.Builder<String> assignmentResult = ImmutableSet.builder();
       Iterator<String> remainingTasks = taskIds.iterator();
       String taskId = remainingTasks.next();
+      Status finalStatus = SUCCESS;
 
       for (HostOffer offer : offerManager.getOffers(groupKey)) {
         evaluatedOffers.incrementAndGet();
@@ -213,11 +255,50 @@ public interface TaskAssigner {
             // Never attempt to match this offer/groupKey pair again.
             offerManager.banOffer(offer.getOffer().getId(), groupKey);
           }
+          finalStatus = VETOED;
           LOG.debug("Agent {} vetoed task {}: {}", offer.getOffer().getHostname(), taskId, vetoes);
         }
       }
-
       return assignmentResult.build();
     }
+
+    /**
+     * Informs the task groups of a task state change.
+     * <p>
+     * This is used to observe {@link org.apache.aurora.gen.ScheduleStatus#PENDING} tasks and begin
+     * attempting to schedule them.
+     *
+     * @param stateChange State change notification.
+     */
+    @Subscribe
+    public synchronized void taskChangedState(TaskStateChange stateChange) {
+      if (Tasks.isTerminated(stateChange.getNewState())) {
+        pendingTaskIds.remove(TaskGroupKey.from(stateChange.getTask().getAssignedTask().getTask()));
+        LOG.info("GROUP REMOVED FROM QUEUE ---> {}", TaskGroupKey.from(stateChange.getTask().getAssignedTask().getTask()).toString());
+      }
+    }
+  }
+
+  final class TaskAssignerResponse {
+    private final Set<String> taskIds;
+    private final Status status;
+
+    public TaskAssignerResponse(Set<String> taskIds, Status status) {
+      this.taskIds = taskIds;
+      this.status = status;
+    }
+
+    public Set<String> getTaskIds() {
+      return taskIds;
+    }
+
+    public Status getStatus() {
+      return status;
+    }
+  }
+
+  enum Status {
+    SUCCESS,
+    VETOED
   }
 }

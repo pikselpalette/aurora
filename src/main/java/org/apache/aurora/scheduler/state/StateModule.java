@@ -13,18 +13,17 @@
  */
 package org.apache.aurora.scheduler.state;
 
-import javax.inject.Singleton;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.inject.AbstractModule;
 import com.google.inject.Binder;
-
 import org.apache.aurora.scheduler.events.PubsubEventModule;
 import org.apache.aurora.scheduler.mesos.MesosTaskFactory;
 import org.apache.aurora.scheduler.mesos.MesosTaskFactory.MesosTaskFactoryImpl;
 import org.apache.aurora.scheduler.state.MaintenanceController.MaintenanceControllerImpl;
-import org.apache.aurora.scheduler.state.TaskAssigner.TaskAssignerImpl;
 import org.apache.aurora.scheduler.state.UUIDGenerator.UUIDGeneratorImpl;
+import org.apache.aurora.scheduler.state.dsr.DRFTaskAssigner;
+
+import javax.inject.Singleton;
 
 /**
  * Binding module for scheduling logic and higher-level state management.
@@ -33,10 +32,10 @@ public class StateModule extends AbstractModule {
 
   @Override
   protected void configure() {
-    bind(TaskAssigner.class).to(TaskAssignerImpl.class);
-    bind(TaskAssignerImpl.class).in(Singleton.class);
+    bind(TaskAssigner.class).to(DRFTaskAssigner.class);
+    bind(DRFTaskAssigner.class).in(Singleton.class);
 
-    PubsubEventModule.bindSubscriber(binder(), TaskAssignerImpl.class);
+    PubsubEventModule.bindSubscriber(binder(), DRFTaskAssigner.class);
     bind(MesosTaskFactory.class).to(MesosTaskFactoryImpl.class);
 
     bind(StateManager.class).to(StateManagerImpl.class);

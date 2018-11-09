@@ -3,9 +3,9 @@ package org.apache.aurora.scheduler.state.dsr;
 public class DominantResource implements Comparable<DominantResource>{
 
     private final String name;
-    private final Float percentageUsage;
+    private final Double percentageUsage;
 
-    public DominantResource(String name, Float percentageUsage) {
+    public DominantResource(String name, Double percentageUsage) {
         this.name = name;
         this.percentageUsage = percentageUsage;
     }
@@ -14,7 +14,7 @@ public class DominantResource implements Comparable<DominantResource>{
         return name;
     }
 
-    public Float getPercentageUsage() {
+    public Double getPercentageUsage() {
         return percentageUsage;
     }
 

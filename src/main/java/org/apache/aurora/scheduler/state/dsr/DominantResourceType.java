@@ -1,11 +1,11 @@
 package org.apache.aurora.scheduler.state.dsr;
 
-public class DominantResourceType<T extends Number> {
+public class DominantResourceType {
 
     private final String resourceName;
-    private final T resourceValue;
+    private final Double resourceValue;
 
-    public DominantResourceType(String resourceName, T resourceValue) {
+    public DominantResourceType(String resourceName, Double resourceValue) {
         this.resourceName = resourceName;
         this.resourceValue = resourceValue;
     }
@@ -14,7 +14,15 @@ public class DominantResourceType<T extends Number> {
         return resourceName;
     }
 
-    public T getValue() {
+    public Double getValue() {
         return resourceValue;
+    }
+
+    @Override
+    public String toString() {
+        return "DominantResourceType{" +
+                "resourceName='" + resourceName + '\'' +
+                ", resourceValue=" + resourceValue +
+                '}';
     }
 }

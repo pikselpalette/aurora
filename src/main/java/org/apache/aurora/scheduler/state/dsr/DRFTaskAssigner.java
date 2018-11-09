@@ -133,41 +133,50 @@ public class DRFTaskAssigner implements TaskAssigner, PubsubEvent.EventSubscribe
             pendingTaskIds.put(groupKey, taskIds);
         }
 
-        List<DominantResourceType<Number>> resourceTypes = StreamSupport.stream(offerManager.getOffers(groupKey).spliterator(), false)
+        offerManager.getOffers().forEach(offer -> LOG.info("OOOOOOOOOOOOOFFERRSSSSSS --> {}", offer.getOffer().getResourcesList()));
+
+        List<DominantResourceType> resourceTypes = StreamSupport.stream(offerManager.getOffers().spliterator(), false)
                 .flatMap(offer -> offer.getOffer().getResourcesList().stream())
                 .map(rsrc -> new DominantResourceType(rsrc.getName(), rsrc.getScalar().getValue()))
-                .collect(Collectors.<DominantResourceType<Number>>toList());
-
-
-        List<DRFTask> drfTaskList = pendingTaskIds.keySet().stream()
-                .map(tg -> DRFUtils.buildDRFTask(tg, tg.getTask().getNumCpus(), tg.getTask().getDiskMb(), tg.getTask().getRamMb()))
-                .sorted(Comparator.<DRFTask>nullsLast(Comparator.comparing(drft -> drft.prioritizedDominantResource(resourceTypes))))
                 .collect(Collectors.toList());
 
+        LOG.info("----------------> Resource types: {}", resourceTypes);
 
-        for(DRFTask drfTask : drfTaskList) {
-            TaskGroupKey candidateGroupKey = drfTask.getGroupKey();
-            LOG.info("DSR task assigner GOING TO EXECUTE THIS GROUP: {} - taskIds --> {}", candidateGroupKey.toString(), Lists.newArrayList(pendingTaskIds.get(candidateGroupKey)));
-            if(canBeAssigned(drfTask, resourceTypes)) {
-                Set<String> assignedTaskIds = maybeAssignCandidate(storeProvider, resourceRequest, candidateGroupKey, pendingTaskIds.get(candidateGroupKey), slaveReservations);
-                LOG.info("Assigned task ids --> {}", assignedTaskIds);
-                return assignedTaskIds;
+        if (!resourceTypes.isEmpty()) {
+
+            List<DRFTask> drfTaskList = pendingTaskIds.keySet().stream()
+                    .map(tg -> DRFUtils.buildDRFTask(tg, tg.getTask().getNumCpus(), tg.getTask().getDiskMb(), tg.getTask().getRamMb()))
+                    .sorted(Comparator.<DRFTask>nullsFirst(Comparator.comparing(drft -> drft.prioritizedDominantResource(resourceTypes))).reversed())
+                    .collect(Collectors.toList());
+
+            LOG.info("******************* --> Prioritized tasks --> {}", drfTaskList);
+
+
+            for (DRFTask drfTask : drfTaskList) {
+                TaskGroupKey candidateGroupKey = drfTask.getGroupKey();
+                LOG.info("DSR task assigner GOING TO EXECUTE THIS GROUP: {} - taskIds --> {}", candidateGroupKey.toString(), Lists.newArrayList(pendingTaskIds.get(candidateGroupKey)));
+                if (canBeAssigned(drfTask, resourceTypes)) {
+                    Set<String> assignedTaskIds = maybeAssignCandidate(storeProvider, resourceRequest, candidateGroupKey, pendingTaskIds.get(candidateGroupKey), slaveReservations);
+                    LOG.info("Assigned task ids --> {}", assignedTaskIds);
+                    return assignedTaskIds;
+                }
+                LOG.warn("Task Group {} cannot be assigned due to there are not enough resources", candidateGroupKey.toString());
             }
-            LOG.warn("Task Group {} cannot be assigned due to there are not enough resources", candidateGroupKey.toString());
+        } else {
+            offerManager.getOffers().forEach(offer -> LOG.info("OOOOOOOOOOOOOFFERRSSSSSS 2222222 --> {}", offer.getOffer().getResourcesList()));
+            return pendingTaskIds.keySet().stream()
+                    .max(Comparator.comparing(tg -> tg.getTask().getPriority()))
+                    .map(candidateGroupKey -> {
+                        LOG.info("DSR task assigner GOING TO EXECUTE THIS GROUP: {} - taskIds --> {}", candidateGroupKey.toString(), Lists.newArrayList(pendingTaskIds.get(candidateGroupKey)));
+                        Set<String> assignedTaskIds = maybeAssignCandidate(storeProvider, resourceRequest, candidateGroupKey, pendingTaskIds.get(candidateGroupKey), slaveReservations);
+                        LOG.info("Assigned task ids --> {}", assignedTaskIds);
+                        return assignedTaskIds;
+                    }).orElse(Collections.emptySet());
         }
-
-//        return pendingTaskIds.keySet().stream()
-//                .max(Comparator.comparing(tg -> tg.getTask().getPriority()))
-//                .map(candidateGroupKey -> {
-//                    LOG.info("DSR task assigner GOING TO EXECUTE THIS GROUP: {} - taskIds --> {}", candidateGroupKey.toString(), Lists.newArrayList(pendingTaskIds.get(candidateGroupKey)));
-//                    Set<String> assignedTaskIds = maybeAssignCandidate(storeProvider, resourceRequest, candidateGroupKey, pendingTaskIds.get(candidateGroupKey), slaveReservations);
-//                    LOG.info("Assigned task ids --> {}", assignedTaskIds);
-//                    return assignedTaskIds;
-//                }).orElse(Collections.emptySet());
         return Collections.emptySet();
     }
 
-    private boolean canBeAssigned(DRFTask drfTask, List<DominantResourceType<Number>> resourceTypes) {
+    private <T extends Number> boolean canBeAssigned(DRFTask drfTask, List<DominantResourceType> resourceTypes) {
         return true;
     }
 

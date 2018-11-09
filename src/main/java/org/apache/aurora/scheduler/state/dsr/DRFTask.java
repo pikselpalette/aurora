@@ -17,29 +17,29 @@ public class DRFTask {
     private static final Logger LOG = LoggerFactory.getLogger(DRFTask.class);
 
     private final TaskGroupKey groupKey;
-    private final Collection<DominantResourceType<?>> resources;
-    private final Integer priority;
+    private final Collection<DominantResourceType> resources;
+    private final Double priority;
 
-    public DRFTask(TaskGroupKey taskId, Collection<DominantResourceType<?>> resources) {
+    public DRFTask(TaskGroupKey taskId, Collection<DominantResourceType> resources) {
         this.groupKey = taskId;
         this.resources = resources;
-        this.priority = groupKey.getTask().getPriority() / 100;
+        this.priority = Integer.valueOf(groupKey.getTask().getPriority()).doubleValue() / 100;
     }
 
     public TaskGroupKey getGroupKey() {
         return groupKey;
     }
 
-    public Collection<DominantResourceType<?>> getResources() {
+    public Collection<DominantResourceType> getResources() {
         return resources;
     }
 
-    public Integer getPriority() {
+    public Double getPriority() {
         return priority;
     }
 
-    public DominantResource dominantResource(Collection<DominantResourceType<Number>> totalResources) {
-        Map<String, Number> totalResourcesMap = resourceTypesCollectionsToMap(totalResources);
+    public DominantResource dominantResource(Collection<DominantResourceType> totalResources) {
+        Map<String, Double> totalResourcesMap = resourceTypesCollectionsToMap(totalResources);
         Optional<DominantResource> dominantResource = getResources().stream()
                 .map(resource -> buildDominantResource(resource.getName(), resource.getValue(), totalResourcesMap.get(resource.getName())))
                 .max(Comparator.comparing(DominantResource::getPercentageUsage));
@@ -51,11 +51,20 @@ public class DRFTask {
         return dominantResource.get();
     }
 
-    public Float prioritizedDominantResource(Collection<DominantResourceType<Number>> totalResources) {
+    public Double prioritizedDominantResource(Collection<DominantResourceType> totalResources) {
         DominantResource dominantResource = dominantResource(totalResources);
         if(dominantResource!=null) {
-            return priority.floatValue() - dominantResource(totalResources).getPercentageUsage();
+            return priority - dominantResource(totalResources).getPercentageUsage();
         }
         return null;
+    }
+
+    @Override
+    public String toString() {
+        return "DRFTask{" +
+                "groupKey=" + groupKey +
+                ", resources=" + resources +
+                ", priority=" + priority +
+                '}';
     }
 }

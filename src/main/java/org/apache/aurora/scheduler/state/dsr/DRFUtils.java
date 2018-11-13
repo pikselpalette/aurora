@@ -24,7 +24,6 @@ public class DRFUtils {
 
     public static DominantResource buildDominantResource(String resourceName, Double value, Double totalAvailable) {
         Double percentage = value / totalAvailable;
-        LOG.info("===================== VALUE, TOTAL, PERCENTAGE -->>>>>>>>>>>>>>>>>>> {}, {}, {}", value, totalAvailable, percentage);
         return new DominantResource(resourceName, percentage);
     }
 

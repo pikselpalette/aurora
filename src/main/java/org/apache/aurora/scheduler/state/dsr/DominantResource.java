@@ -22,4 +22,12 @@ public class DominantResource implements Comparable<DominantResource>{
     public int compareTo(DominantResource coming) {
         return percentageUsage.compareTo(coming.getPercentageUsage());
     }
+
+    @Override
+    public String toString() {
+        return "DominantResource{" +
+                "name='" + name + '\'' +
+                ", percentageUsage=" + percentageUsage +
+                '}';
+    }
 }

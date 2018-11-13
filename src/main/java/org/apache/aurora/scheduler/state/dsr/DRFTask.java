@@ -23,7 +23,7 @@ public class DRFTask {
     public DRFTask(TaskGroupKey taskId, Collection<DominantResourceType> resources) {
         this.groupKey = taskId;
         this.resources = resources;
-        this.priority = Integer.valueOf(groupKey.getTask().getPriority()).doubleValue() / 100;
+        this.priority = groupKey.getTask().getPriority() / 100.0;
     }
 
     public TaskGroupKey getGroupKey() {
@@ -54,8 +54,8 @@ public class DRFTask {
     public Double prioritizedDominantResource(Collection<DominantResourceType> totalResources) {
         DominantResource dominantResource = dominantResource(totalResources);
         if(dominantResource!=null) {
-            return priority - dominantResource(totalResources).getPercentageUsage();
-        }
+            return priority - dominantResource.getPercentageUsage();
+        };
         return null;
     }
 

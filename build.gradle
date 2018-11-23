@@ -357,7 +357,10 @@ dependencies {
   compile "com.google.inject.extensions:guice-assistedinject:${guiceRev}"
   compile "com.google.protobuf:protobuf-java:${protobufRev}"
   compile 'com.h2database:h2:1.4.193'
-  compile 'com.hubspot.jackson:jackson-datatype-protobuf:0.9.3'
+  compile ('com.hubspot.jackson:jackson-datatype-protobuf:0.9.3') {
+    exclude group: "com.fasterxml.jackson.core", module: "jackson-databind"
+  }
+  compile "net.logstash.logback:logstash-logback-encoder:4.5"
   compile "com.fasterxml.jackson.core:jackson-core:${jacksonRev}"
   compile "com.sun.jersey:jersey-core:${jerseyRev}"
   compile "com.sun.jersey:jersey-json:${jerseyRev}"

@@ -19,7 +19,7 @@ limitations under the License.
  http://logback.qos.ch/manual/configuration.html
 -->
 <configuration debug="true">
- <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+  <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
     <file>${logstash_log}</file>
     <rollingPolicy class="ch.qos.logback.core.rolling.FixedWindowRollingPolicy">
       <fileNamePattern>${logstash_log}.%i</fileNamePattern>
@@ -29,11 +29,9 @@ limitations under the License.
     <triggeringPolicy class="ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy">
       <maxFileSize>10MB</maxFileSize>
     </triggeringPolicy>
-    <encoder>
-      <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS}:%-5p:%c{2}:%m%n</pattern>
+    <encoder class="net.logstash.logback.encoder.LogstashEncoder">
     </encoder>
   </appender>
-
 
   <logger name="h2database" level="warn">
   </logger>

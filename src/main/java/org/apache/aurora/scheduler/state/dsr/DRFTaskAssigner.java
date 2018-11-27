@@ -62,6 +62,8 @@ public class DRFTaskAssigner implements TaskAssigner, PubsubEvent.EventSubscribe
 
     // Map with all tasks pending to be executed, and grouped by group key
     private final Map<TaskGroupKey, Iterable<String>> pendingTaskIds = new ConcurrentHashMap<>();
+    // Map with all tasks that are running at the moment, and grouped by group key
+    private final Map<TaskGroupKey, Iterable<String>> runningTaskIds = new ConcurrentHashMap<>();
 
     private List<DominantResourceType> resourceTypes;
 
@@ -126,7 +128,7 @@ public class DRFTaskAssigner implements TaskAssigner, PubsubEvent.EventSubscribe
             return ImmutableSet.of();
         }
 
-        if(!pendingTaskIds.containsKey(groupKey) || !Sets.newHashSet(pendingTaskIds.get(groupKey)).containsAll(Sets.newHashSet(taskIds))) {
+        if(isNotAPendingTask(groupKey, taskIds) && isNotARunningTask(groupKey)) {
             pendingTaskIds.put(groupKey, taskIds);
         }
 
@@ -152,6 +154,10 @@ public class DRFTaskAssigner implements TaskAssigner, PubsubEvent.EventSubscribe
                 TaskGroupKey candidateGroupKey = drfTask.getGroupKey();
                 if (canBeAssigned(drfTask, resourceTypes)) {
                     Set<String> assignedTaskIds = maybeAssignCandidate(storeProvider, resourceRequest, candidateGroupKey, pendingTaskIds.get(candidateGroupKey), slaveReservations);
+                    if(!Objects.isNull(assignedTaskIds) && !assignedTaskIds.isEmpty()) {
+                        runningTaskIds.put(groupKey, assignedTaskIds);
+                        pendingTaskIds.remove(groupKey);
+                    }
                     return assignedTaskIds;
                 }
                 LOG.warn("Task Group {} cannot be assigned due to there are not enough resources", candidateGroupKey.toString());
@@ -160,6 +166,14 @@ public class DRFTaskAssigner implements TaskAssigner, PubsubEvent.EventSubscribe
             LOG.warn("Empty resources...");
         }
         return Collections.emptySet();
+    }
+
+    private boolean isNotAPendingTask(TaskGroupKey groupKey, Iterable<String> taskIds) {
+        return !pendingTaskIds.containsKey(groupKey) || !Sets.newHashSet(pendingTaskIds.get(groupKey)).containsAll(Sets.newHashSet(taskIds));
+    }
+
+    private boolean isNotARunningTask(TaskGroupKey groupKey) {
+        return !runningTaskIds.containsKey(groupKey);
     }
 
     private <T extends Number> boolean canBeAssigned(DRFTask drfTask, List<DominantResourceType> resourceTypes) {
@@ -245,7 +259,7 @@ public class DRFTaskAssigner implements TaskAssigner, PubsubEvent.EventSubscribe
     @Subscribe
     public synchronized void taskChangedState(PubsubEvent.TaskStateChange stateChange) {
         if (Tasks.isTerminated(stateChange.getNewState())) {
-            pendingTaskIds.remove(TaskGroupKey.from(stateChange.getTask().getAssignedTask().getTask()));
+            runningTaskIds.remove(TaskGroupKey.from(stateChange.getTask().getAssignedTask().getTask()));
         }
     }
 }

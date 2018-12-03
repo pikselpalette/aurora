@@ -129,6 +129,7 @@ public class DRFTaskAssigner implements TaskAssigner, PubsubEvent.EventSubscribe
         }
 
         if(isNotAPendingTask(groupKey, taskIds) && isNotARunningTask(groupKey)) {
+            LOG.info("\n\n>>>>>>>>>>>>>>>>>>>>> put into pendingTaskIds \n\n");
             pendingTaskIds.put(groupKey, taskIds);
         }
 
@@ -154,7 +155,9 @@ public class DRFTaskAssigner implements TaskAssigner, PubsubEvent.EventSubscribe
                 TaskGroupKey candidateGroupKey = drfTask.getGroupKey();
                 if (canBeAssigned(drfTask, resourceTypes)) {
                     Set<String> assignedTaskIds = maybeAssignCandidate(storeProvider, resourceRequest, candidateGroupKey, pendingTaskIds.get(candidateGroupKey), slaveReservations);
+                    LOG.info("\n\n>>>>>>>>>>>>>>>>>>>>> assignedTaskIds: |{}| \n\n", assignedTaskIds);
                     if(!Objects.isNull(assignedTaskIds) && !assignedTaskIds.isEmpty()) {
+                        LOG.info("\n\n>>>>>>>>>>>>>>>>>>>>> put into runningTasks and remove from pendingTasks - groupKey: |{}| \n\n", groupKey);
                         runningTaskIds.put(groupKey, assignedTaskIds);
                         pendingTaskIds.remove(groupKey);
                     }
@@ -173,7 +176,9 @@ public class DRFTaskAssigner implements TaskAssigner, PubsubEvent.EventSubscribe
     }
 
     private boolean isNotARunningTask(TaskGroupKey groupKey) {
-        return !runningTaskIds.containsKey(groupKey);
+        boolean isNotRunning = !runningTaskIds.containsKey(groupKey);
+        LOG.info("\n\n>>>>>>>>>>>>>>>>>>>>> groupKey {} isNotARunningTask? |{}| \n\n", groupKey, isNotRunning);
+        return isNotRunning;
     }
 
     private <T extends Number> boolean canBeAssigned(DRFTask drfTask, List<DominantResourceType> resourceTypes) {
@@ -259,6 +264,7 @@ public class DRFTaskAssigner implements TaskAssigner, PubsubEvent.EventSubscribe
     @Subscribe
     public synchronized void taskChangedState(PubsubEvent.TaskStateChange stateChange) {
         if (Tasks.isTerminated(stateChange.getNewState())) {
+            LOG.info("\n\n>>>>>>>>>>>>>>>>>>>>> taskChangedState remove the groupKey {} from runningTasks \n\n", TaskGroupKey.from(stateChange.getTask().getAssignedTask().getTask()));
             runningTaskIds.remove(TaskGroupKey.from(stateChange.getTask().getAssignedTask().getTask()));
         }
     }

@@ -4,7 +4,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Optional;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.eventbus.Subscribe;
 import org.apache.aurora.common.inject.TimedInterceptor;
@@ -29,13 +28,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.inject.Inject;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -148,7 +141,7 @@ public class DRFTaskAssigner implements TaskAssigner, PubsubEvent.EventSubscribe
         if (!resourceTypes.isEmpty()) {
             List<DRFTask> drfTaskList = pendingTaskIds.keySet().stream()
                     .map(tg -> DRFUtils.buildDRFTask(tg, tg.getTask().getNumCpus(), tg.getTask().getDiskMb(), tg.getTask().getRamMb()))
-                    .sorted(Comparator.<DRFTask>nullsFirst(Comparator.comparing(drft -> drft.prioritizedDominantResource(resourceTypes))))
+                    .sorted(Comparator.<DRFTask>nullsLast(Comparator.comparing(drft -> drft.prioritizedDominantResource(resourceTypes))).reversed())
                     .collect(Collectors.toList());
 
             LOG.info("******************* --> Prioritized tasks --> {}", drfTaskList);

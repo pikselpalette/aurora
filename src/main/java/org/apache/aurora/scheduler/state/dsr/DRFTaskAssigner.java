@@ -157,9 +157,9 @@ public class DRFTaskAssigner implements TaskAssigner, PubsubEvent.EventSubscribe
                     Set<String> assignedTaskIds = maybeAssignCandidate(storeProvider, resourceRequest, candidateGroupKey, pendingTaskIds.get(candidateGroupKey), slaveReservations);
                     LOG.info("\n\n>>>>>>>>>>>>>>>>>>>>> assignedTaskIds: |{}| \n\n", assignedTaskIds);
                     if(!Objects.isNull(assignedTaskIds) && !assignedTaskIds.isEmpty()) {
-                        LOG.info("\n\n>>>>>>>>>>>>>>>>>>>>> put into runningTasks and remove from pendingTasks - groupKey: |{}| \n\n", groupKey);
-                        runningTaskIds.put(groupKey, assignedTaskIds);
-                        pendingTaskIds.remove(groupKey);
+                        LOG.info("\n\n>>>>>>>>>>>>>>>>>>>>> put into runningTasks and remove from pendingTasks - groupKey: |{}| \n\n", candidateGroupKey);
+                        runningTaskIds.put(candidateGroupKey, assignedTaskIds);
+                        pendingTaskIds.remove(candidateGroupKey);
                     }
                     return assignedTaskIds;
                 }
